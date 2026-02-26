@@ -1,4 +1,4 @@
-import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
+import { useAudioPlayer, AudioMode, setAudioModeAsync } from 'expo-audio';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useMemo, useRef } from 'react';
@@ -8,9 +8,13 @@ import { useFocus } from '../../src/context/focus-context';
 import { formatTimeMMSS } from '../../src/lib/time';
 import { COLORS, FONT_FAMILY, RADIUS } from '../../src/theme';
 
+const AMBIENT_SOUND = require('../../assets/ambient.mp3');
+
 export default function BodyDoubleScreen() {
   const router = useRouter();
   const { phase, remainingSeconds } = useFocus();
+
+
 
   const fade = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(1)).current;
@@ -55,51 +59,6 @@ export default function BodyDoubleScreen() {
     };
   }, [fade, pulse]);
 
-  useEffect(() => {
-    let mounted = true;
-    let sound: Audio.Sound | null = null;
-
-    const startAmbient = async () => {
-      try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          staysActiveInBackground: false,
-          interruptionModeIOS: InterruptionModeIOS.DuckOthers,
-          playsInSilentModeIOS: true,
-          shouldDuckAndroid: true,
-          interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
-          playThroughEarpieceAndroid: false,
-        });
-
-        const loaded = await Audio.Sound.createAsync(
-          require('../../assets/ambient.mp3'),
-          {
-            isLooping: true,
-            shouldPlay: true,
-            volume: 0.33,
-          },
-        );
-
-        if (!mounted) {
-          await loaded.sound.unloadAsync();
-          return;
-        }
-
-        sound = loaded.sound;
-      } catch {
-        // Keep body double usable even if audio cannot load.
-      }
-    };
-
-    void startAmbient();
-
-    return () => {
-      mounted = false;
-      if (sound) {
-        void sound.unloadAsync();
-      }
-    };
-  }, []);
 
   const timerText = useMemo(() => formatTimeMMSS(remainingSeconds), [remainingSeconds]);
 

@@ -55,6 +55,7 @@ interface FocusContextValue {
   stopTimer: () => Promise<void>;
 }
 
+const NOTIFICATION_ID = 'pomodoro-end';
 const FocusContext = createContext<FocusContextValue | null>(null);
 
 const createId = (): string => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -90,7 +91,6 @@ export const FocusProvider = ({ children }: { children: React.ReactNode }) => {
   const [activeSessionStartedAt, setActiveSessionStartedAt] = useState<string | null>(null);
 
   const phase = POMODORO_PHASES[phaseIndex] ?? POMODORO_PHASES[0];
-  const notificationIdRef = useRef<string | null>(null);
   const completingRef = useRef(false);
 
   useEffect(() => {
@@ -127,8 +127,8 @@ export const FocusProvider = ({ children }: { children: React.ReactNode }) => {
 
         const safePhaseIndex =
           typeof parsed.phaseIndex === 'number' &&
-          parsed.phaseIndex >= 0 &&
-          parsed.phaseIndex < POMODORO_PHASES.length
+            parsed.phaseIndex >= 0 &&
+            parsed.phaseIndex < POMODORO_PHASES.length
             ? parsed.phaseIndex
             : 0;
         const fallbackSeconds = phaseDurationSeconds(POMODORO_PHASES[safePhaseIndex]);
@@ -171,17 +171,12 @@ export const FocusProvider = ({ children }: { children: React.ReactNode }) => {
   }, [currentTaskId, hydrated, phaseIndex, recentTaskTitles, remainingSeconds, sessions, tasks]);
 
   const cancelScheduledNotification = useCallback(async () => {
-    if (!notificationIdRef.current) {
-      return;
-    }
-
     try {
-      await Notifications.cancelScheduledNotificationAsync(notificationIdRef.current);
+      await Notifications.cancelScheduledNotificationAsync(NOTIFICATION_ID);
+      await Notifications.dismissAllNotificationsAsync();
     } catch {
       // Ignore cancellation issues.
     }
-
-    notificationIdRef.current = null;
   }, []);
 
   const scheduleEndNotification = useCallback(
@@ -199,23 +194,23 @@ export const FocusProvider = ({ children }: { children: React.ReactNode }) => {
           : 'Przerwa minęła. Wracamy do focusu.';
 
       try {
-        const trigger = {
-          seconds: Math.max(1, seconds),
-          channelId: 'pomodoro',
-          repeats: false,
-        } as Notifications.NotificationTriggerInput;
-
-        notificationIdRef.current = await Notifications.scheduleNotificationAsync({
+        await Notifications.scheduleNotificationAsync({
+          identifier: NOTIFICATION_ID,
           content: {
             title,
             body,
             sound: true,
             data: { type },
           },
-          trigger,
+          trigger: {
+            type: 'timeInterval',
+            seconds: Math.max(1, Math.floor(seconds)),
+            repeats: false,
+            channelId: 'pomodoro',
+          } as any,
         });
       } catch {
-        notificationIdRef.current = null;
+        // Ignore scheduling issues.
       }
     },
     [cancelScheduledNotification],
